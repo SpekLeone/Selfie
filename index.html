@@ -76,7 +76,12 @@
             canvas.width = 512;
             canvas.height = 512;
 
-            // 1. Center-crop to square (keeps original proportions, no distortion)
+            // 0. Random grey background (varied shades every time)
+            const randomGray = Math.floor(Math.random() * 140) + 40; // 40–179
+            ctx.fillStyle = `rgb(${randomGray}, ${randomGray}, ${randomGray})`;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // 1. Center-crop selfie and draw on top
             const originalW = img.width;
             const originalH = img.height;
             const size = Math.min(originalW, originalH);
@@ -84,16 +89,29 @@
             const sy = (originalH - size) / 2;
             ctx.drawImage(img, sx, sy, size, size, 0, 0, 512, 512);
 
-            // 2. Grayscale (normal)
+            // 2. Plain grayscale
             let imageData = ctx.getImageData(0, 0, 512, 512);
             let data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
-                const avg = (data[i] + data[i+1] + data[i+2]) / 3;
-                data[i] = data[i+1] = data[i+2] = avg;
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                data[i] = data[i + 1] = data[i + 2] = avg;
             }
             ctx.putImageData(imageData, 0, 0);
 
-            // 3. Pixelate with big blocks (creates the visible retro blocks)
+            // 3. Random black holes (50%) — applied BEFORE pixelation so they become BIG blocks
+            imageData = ctx.getImageData(0, 0, 512, 512);
+            data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                if (Math.random() < 0.25) {
+                    data[i]   = 0;   // pure black
+                    data[i + 1] = 0;
+                    data[i + 2] = 0;
+                    data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+
+            // 4. Pixelate with big 16×16 blocks (now the holes are also big and clean)
             const pixelSize = 16;
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = 512 / pixelSize;
@@ -105,34 +123,17 @@
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(tempCanvas, 0, 0, 512, 512);
 
-            // 4. Brightness boost + contrast AFTER grayscale and pixelation (exactly what you asked for)
-            const brightnessBoost = 80;
-            const contrastFactor = 1.4;   // ← keeps the blocks visible even with high brightness
+            // 5. Brightness boost AFTER pixelation
+            const brightnessBoost = 40;
+            const contrastFactor = 1.4;
 
             imageData = ctx.getImageData(0, 0, 512, 512);
             data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
                 const gray = data[i];
-                // First apply contrast (makes dark blocks darker, light blocks lighter)
                 let contrasted = 128 + (gray - 128) * contrastFactor;
-                // Then apply brightness boost
                 let bright = Math.min(255, Math.max(0, contrasted + brightnessBoost));
-                data[i] = data[i+1] = data[i+2] = bright;
-            }
-            ctx.putImageData(imageData, 0, 0);
-
-            // 5. Delete ~50% of pixels (solid black)
-            const backgroundGray = 0;
-
-            imageData = ctx.getImageData(0, 0, 512, 512);
-            data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                if (Math.random() < 0.50) {
-                    data[i]   = backgroundGray;
-                    data[i+1] = backgroundGray;
-                    data[i+2] = backgroundGray;
-                    data[i+3] = 255;
-                }
+                data[i] = data[i + 1] = data[i + 2] = bright;
             }
             ctx.putImageData(imageData, 0, 0);
 
@@ -171,7 +172,5 @@
             if (file) await processAndShow(file);
         });
     </script>
-</body>
-</html>
 </body>
 </html>
