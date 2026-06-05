@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Selfie → Retro NFT</title>
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
         body { 
             font-family: Arial, sans-serif; 
             text-align: center; 
@@ -36,17 +34,17 @@
 
         #result { 
             max-width: 100%;
-            width: 512px;
+            width: 1024px;
             height: auto;
             margin: 30px auto;
-            border: 6px solid #000;
+            border: 6px solid #000; 
             box-shadow: 0 0 25px rgba(0,0,0,0.9);
             display: block;
             border-radius: 8px;
         }
 
         #instructions {
-            max-width: 512px;
+            max-width: 1024px;
             margin: 20px auto;
             font-size: 16px;
             opacity: 0.9;
@@ -58,15 +56,8 @@
             padding: 16px;
             border-radius: 12px;
             margin: 20px auto;
-            max-width: 512px;
+            max-width: 1024px;
             font-size: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-
-        @media (max-width: 480px) {
-            h1 { font-size: 24px; }
-            button { font-size: 18px; padding: 14px 24px; }
-            #result { border-width: 4px; }
         }
     </style>
 </head>
@@ -86,7 +77,7 @@
     <input type="file" id="galleryInput" accept="image/*" style="display:none">
     <input type="file" id="cameraInput" accept="image/*" capture="user" style="display:none">
 
-    <canvas id="canvas" width="512" height="512" style="display:none"></canvas>
+    <canvas id="canvas" width="1024" height="1024" style="display:none"></canvas>
     <img id="result" alt="Your Retro NFT">
 
     <script>
@@ -97,69 +88,140 @@
 
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = 512;
-            canvas.height = 512;
+            canvas.width = 1024;
+            canvas.height = 1024;
 
-            // 0. Random grey background
-            const randomGray = Math.floor(Math.random() * 140) + 40;
-            ctx.fillStyle = `rgb(${randomGray}, ${randomGray}, ${randomGray})`;
-            ctx.fillRect(0, 0, 512, 512);
+            // ==================== CONFIG ====================
+            let deletionRate = 0.00;     // controls COLOR (0.50 = grayscale, 0.00 = colorful)
+            const pixelSize = 32;
+            const brightnessBoost = 80;
+            const skullTransparency = 0.05;
+            const skullChance = 0.10;
+            // ===============================================
 
-            // 1. Center-crop selfie
+            // 1. Center-crop to square
             const originalW = img.width;
             const originalH = img.height;
             const size = Math.min(originalW, originalH);
             const sx = (originalW - size) / 2;
             const sy = (originalH - size) / 2;
-            ctx.drawImage(img, sx, sy, size, size, 0, 0, 512, 512);
+            ctx.drawImage(img, sx, sy, size, size, 0, 0, 1024, 1024);
 
-            // 2. Grayscale
-            let imageData = ctx.getImageData(0, 0, 512, 512);
-            let data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                data[i] = data[i + 1] = data[i + 2] = avg;
-            }
-            ctx.putImageData(imageData, 0, 0);
-
-            // 3. Random black holes (10% as in your version)
-            imageData = ctx.getImageData(0, 0, 512, 512);
-            data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                if (Math.random() < 0.10) {
-                    data[i]   = 0;
-                    data[i + 1] = 0;
-                    data[i + 2] = 0;
-                    data[i + 3] = 175;
+            // === SELF-CENSOR: Skin detection ===
+            let skinCount = 0;
+            let tempData = ctx.getImageData(0, 0, 1024, 1024).data;
+            for (let i = 0; i < tempData.length; i += 4) {
+                const r = tempData[i];
+                const g = tempData[i + 1];
+                const b = tempData[i + 2];
+                if (r > 90 && g > 40 && b > 20 && r > g && r > b) {
+                    skinCount++;
                 }
             }
-            ctx.putImageData(imageData, 0, 0);
+            const skinPercentage = (skinCount / (1024 * 1024)) * 100;
 
-            // 4. Pixelate with big 16×16 blocks
-            const pixelSize = 16;
+            let blackHoleRate = deletionRate;
+            if (skinPercentage > 35) {
+                blackHoleRate = Math.max(deletionRate, 0.65);
+                console.log("High skin detected — extra black holes applied");
+            }
+
+            // 2. Pixelate
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 512 / pixelSize;
-            tempCanvas.height = 512 / pixelSize;
+            tempCanvas.width = 1024 / pixelSize;
+            tempCanvas.height = 1024 / pixelSize;
             const tCtx = tempCanvas.getContext('2d');
             tCtx.imageSmoothingEnabled = false;
             tCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
 
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(tempCanvas, 0, 0, 512, 512);
+            ctx.drawImage(tempCanvas, 0, 0, 1024, 1024);
 
-            // 5. Brightness boost
-            const brightnessBoost = 40;
-            const contrastFactor = 1.4;
+            // 3. Gradual color → grayscale (always uses original deletionRate)
+            let imageData = ctx.getImageData(0, 0, 1024, 1024);
+            let data = imageData.data;
+            const colorStrength = Math.max(0, 1 - deletionRate * 2);
 
-            imageData = ctx.getImageData(0, 0, 512, 512);
-            data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
-                const gray = data[i];
-                let contrasted = 128 + (gray - 128) * contrastFactor;
-                let bright = Math.min(255, Math.max(0, contrasted + brightnessBoost));
-                data[i] = data[i + 1] = data[i + 2] = bright;
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const gray = (r + g + b) / 3;
+
+                data[i]   = Math.min(255, gray + (r - gray) * colorStrength * 1.4);
+                data[i+1] = Math.min(255, gray + (g - gray) * colorStrength * 1.4);
+                data[i+2] = Math.min(255, gray + (b - gray) * colorStrength * 1.4);
             }
             ctx.putImageData(imageData, 0, 0);
+
+            // 4. Brightness boost
+            imageData = ctx.getImageData(0, 0, 1024, 1024);
+            data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i]   = Math.min(255, data[i]   + brightnessBoost);
+                data[i+1] = Math.min(255, data[i+1] + brightnessBoost);
+                data[i+2] = Math.min(255, data[i+2] + brightnessBoost);
+            }
+            ctx.putImageData(imageData, 0, 0);
+
+            // 5. Draw colored blocks + transparent randomly rotated skulls
+            const gridSize = 1024 / pixelSize;
+            ctx.fillStyle = "#111";
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const pixelData = tCtx.getImageData(x, y, 1, 1).data;
+                    let r = pixelData[0];
+                    let g = pixelData[1];
+                    let b = pixelData[2];
+
+                    const gray = (r + g + b) / 3;
+                    r = Math.min(255, gray + (r - gray) * colorStrength * 1.4);
+                    g = Math.min(255, gray + (g - gray) * colorStrength * 1.4);
+                    b = Math.min(255, gray + (b - gray) * colorStrength * 1.4);
+                    r = Math.min(255, r + brightnessBoost);
+                    g = Math.min(255, g + brightnessBoost);
+                    b = Math.min(255, b + brightnessBoost);
+
+                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+
+                    if (Math.random() < skullChance) {
+                        ctx.save();
+                        const centerX = x * pixelSize + pixelSize / 2;
+                        const centerY = y * pixelSize + pixelSize / 2;
+                        ctx.translate(centerX, centerY);
+                        ctx.rotate((Math.random() * 70 - 35) * Math.PI / 180);
+
+                        ctx.globalAlpha = skullTransparency;
+                        ctx.fillStyle = "#111";
+                        ctx.font = `${pixelSize * 0.72}px Arial`;
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText("💀", 0, 0);
+
+                        ctx.globalAlpha = 1.0;
+                        ctx.restore();
+                    }
+                }
+            }
+
+            // 6. Grainy black holes (ALWAYS uses original deletionRate + censor boost)
+            const grainRate = Math.max(deletionRate, 0.45);   // keeps the grainy look you like
+            if (grainRate > 0) {
+                imageData = ctx.getImageData(0, 0, 1024, 1024);
+                data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+                    const darknessFactor = (255 - brightness) / 255;
+                    if (Math.random() < grainRate * darknessFactor * 1.15) {
+                        data[i] = data[i+1] = data[i+2] = 0;
+                        data[i+3] = 255;
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+            }
 
             return canvas.toDataURL('image/png');
         }
@@ -168,7 +230,7 @@
             const resultImg = document.getElementById('result');
             try {
                 const base64 = await processSelfie(file);
-                resultImg.src = base64;
+                if (base64) resultImg.src = base64;
             } catch (err) {
                 console.error(err);
                 alert('Something went wrong. Please try another photo.');
@@ -183,7 +245,6 @@
             document.getElementById('cameraInput').click();
         }
 
-        // Event listeners
         document.getElementById('galleryInput').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) await processAndShow(file);
